@@ -1,6 +1,6 @@
 <?php
 
-namespace Sloveniangooner\SearchableSelect;
+namespace MenC\SearchableSelect;
 
 use Laravel\Nova\Fields\Select;
 use Laravel\Nova\Nova;

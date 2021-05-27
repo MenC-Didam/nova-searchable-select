@@ -1,6 +1,6 @@
 <?php
 
-namespace Sloveniangooner\SearchableSelect\Http\Middleware;
+namespace MenC\SearchableSelect\Http\Middleware;
 
 class Authorize
 {
