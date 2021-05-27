@@ -11,7 +11,7 @@ class SearchableSelectController extends Controller
     {
         $searchable = $request->get("searchable", false);
         $resource = $request->resource();
-        $label = $request->get("label", $resource::$title);
+        $label = $request->get("label", null);
         $labelPrefix = $request->get("labelPrefix", false);
 
         if ($searchable && $request->filled('search')) {
@@ -33,17 +33,21 @@ class SearchableSelectController extends Controller
         if ($request->has("max")) {
             $items = $items->take($request->get("max"));
         }
-    
+
         if (!$searchable) { // Don't apply the relatableQuery if not searchable, it won't handle it
-            $request->resource()::relatableQuery($request, $items);
+            $resource::relatableQuery($request, $items);
         }
 
-        $items = $items->get()->makeVisible(['display', 'value'])->each(function ($item) use ($request, $labelPrefix, $label) {
+        $items = $items->get()->makeVisible(['display', 'value'])->each(function ($item) use ($request, $labelPrefix, $label, $resource) {
+            $resourceObj = new $resource($item);
+
             $item->display = '';
-            if($labelPrefix) {
+            if ($labelPrefix) {
                 $item->display .= $item->{$labelPrefix} . ': ';
             }
             $item->display .= $item->{$label};
+            $item->display .= $label ? $item->{$label} : $resourceObj->title();
+
             $item->value = $item->{$request->get("value")};
         });
 
@@ -58,16 +62,16 @@ class SearchableSelectController extends Controller
     /**
      * Get the paginator instance for the index request.
      *
-     * @param  \Laravel\Nova\Http\Requests\ResourceIndexRequest  $request
-     * @param  string  $resource
+     * @param \Laravel\Nova\Http\Requests\ResourceIndexRequest $request
+     * @param string $resource
      * @return \Illuminate\Pagination\Paginator
      */
     protected function paginator(ResourceIndexRequest $request, $resource)
     {
         return $request->toQuery()->simplePaginate(
             $request->viaRelationship()
-                        ? $resource::$perPageViaRelationship
-                        : ($request->perPage ?? 25)
+                ? $resource::$perPageViaRelationship
+                : ($request->perPage ?? 25)
         );
     }
 }
