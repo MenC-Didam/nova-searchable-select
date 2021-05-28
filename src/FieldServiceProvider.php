@@ -1,45 +1,74 @@
 <?php
 
-namespace MenC\SearchableSelect;
+namespace MenC\SearchableSelect\Http\Controllers;
 
-use Laravel\Nova\Nova;
-use Laravel\Nova\Events\ServingNova;
-use Illuminate\Support\ServiceProvider;
-use MenC\SearchableSelect\Http\Middleware\Authorize;
-use Route;
+use Illuminate\Routing\Controller;
+use Laravel\Nova\Http\Requests\ResourceIndexRequest;
 
-class FieldServiceProvider extends ServiceProvider
+class SearchableSelectController extends Controller
 {
-    /**
-     * Bootstrap any application services.
-     *
-     * @return void
-     */
-    public function boot()
+    public function index(ResourceIndexRequest $request)
     {
-        Nova::serving(function (ServingNova $event) {
-            Nova::script('searchable-select', __DIR__.'/../dist/js/field.js');
-            Nova::style('searchable-select', __DIR__.'/../dist/css/field.css');
+        $searchable = $request->get("searchable", false);
+        $resource = $request->resource();
+        $label = $request->get("label", null);
+        $labelPrefix = $request->get("labelPrefix", false);
+
+        if ($searchable && $request->filled('search')) {
+            $items = $request->model()::search($request->get('search'));
+        } else {
+            $items = $request->toQuery();
+        }
+
+        if ($request->has("use_resource_ids")) {
+            $ids = $request->has("resource_ids") ? json_decode($request->get("resource_ids")) : [];
+            $items = $items->whereIn($request->get("value"), $ids);
+        }
+
+        if ($request->has("ignore_resource_ids")) {
+            $ids = $request->has("resource_ids") ? json_decode($request->get("resource_ids")) : [];
+            $items = $items->whereNotIn($request->get("value"), $ids);
+        }
+
+        if ($request->has("max")) {
+            $items = $items->take($request->get("max"));
+        }
+
+        if (!$searchable) { // Don't apply the relatableQuery if not searchable, it won't handle it
+            $resource::relatableQuery($request, $items);
+        }
+
+        $items = $items->get()->makeVisible(['display', 'value'])->each(function ($item) use ($request, $labelPrefix, $label, $resource) {
+            $resourceObj = new $resource($item);
+            $item->display = '';
+
+            if($labelPrefix) {
+                $item->display .= $item->{$labelPrefix} . ': ';
+            }
+
+            $item->display .= $label ? $item->{$label} : $resourceObj->title();
+            $item->value = $item->{$request->get("value")};
         });
 
-        $this->app->booted(function () {
-            $this->routes();
-        });
+        return response()->json([
+            "label" => $resource::label(),
+            "resources" => $items,
+        ]);
     }
 
     /**
-     * Register the field's routes.
+     * Get the paginator instance for the index request.
      *
-     * @return void
+     * @param  \Laravel\Nova\Http\Requests\ResourceIndexRequest  $request
+     * @param  string  $resource
+     * @return \Illuminate\Pagination\Paginator
      */
-    protected function routes()
+    protected function paginator(ResourceIndexRequest $request, $resource)
     {
-        if ($this->app->routesAreCached()) {
-            return;
-        }
-
-        Route::middleware(['nova', Authorize::class])
-                ->prefix('nova-vendor/searchable-select')
-                ->group(__DIR__.'/../routes/api.php');
+        return $request->toQuery()->simplePaginate(
+            $request->viaRelationship()
+                ? $resource::$perPageViaRelationship
+                : ($request->perPage ?? 25)
+        );
     }
 }
