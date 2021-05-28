@@ -1,6 +1,6 @@
 <?php
 
-namespace MenC\SearchableSelect\Http\Controllers;
+namespace MenC\SearchableSelect;
 
 use Illuminate\Routing\Controller;
 use Laravel\Nova\Http\Requests\ResourceIndexRequest;
